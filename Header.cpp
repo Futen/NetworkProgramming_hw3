@@ -53,6 +53,8 @@ int CommandChoose(string command){
         return SHOWLOGIN;
     else if(command == "SHOWLOGOUT")
         return SHOWLOGOUT;
+    else if(command == "UPDATELST")
+        return UPDATELST;
     else
         return DEFAULT;
 }

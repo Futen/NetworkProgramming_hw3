@@ -46,34 +46,20 @@ struct User{
     Artical* first_artical;
     Artical* last_artical;
 };
-class UserClass;
-class ArticalClass;
-
-class ArticalClass{
-private:
-    int artical_index;
-    Artical* first_artical;
-    Artical* last_artical;
-protected:
-    Artical* FindArticalFromIndex(int index);
-    Message* FindMessageFromIndex(int art_index, int mess_index);
-public:
-    //int artical_index;
-    void Init();
-    void SaveArtical();
-    int CreateArtical(string account, string artical);
-    void ShowArtical();
-    Message* CreateMessage(int parent_artical_index, string account, string message);
-    Message* ModifyMessage(int art_index, int mess_index, string message);
-    bool DeleteMessage(int art_index, int mess_index);
-    bool DeleteArtical(int art_index);
+struct File{
+    string f_name;
+    vector<string> owner_lst;
+    File *next;
 };
+class UserClass;
 
 class UserClass{
 private:
     int user_index;
     User* first_user;
     User* last_user;
+    File* first_file;
+    File* last_file;
 protected:
     Artical* CreateArtical(User* user, string artical);
     Artical* CreateArtical(User* user, string artical, string IP, int port, string time);
@@ -125,5 +111,9 @@ public:
     bool RemoveFriend(string user_account, string friend_name);
     bool RemoveInvite(string user_account, string who);
     bool InviteAggree(string user_account, string friend_account);
+    /*****************/
+    bool AddFile(string f_name, string owner);
+    void RemoveOwner(string owner);
+    void PrintFileLst();
 };
 #endif

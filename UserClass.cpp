@@ -3,6 +3,8 @@
 void UserClass::Init(){
     first_user =  NULL;
     last_user = NULL;
+    this->first_file = NULL;
+    this->last_file = NULL;
     user_index = 0;
     ifstream file;
     file.open("USER_LST.txt", fstream::in);
@@ -583,6 +585,77 @@ bool UserClass::UnLike(string IP, int port, string account, int artical_index){
     }
     return false;
 }
-
-
-
+bool UserClass::AddFile(string f_name, string owner){
+    File *tmp = NULL;
+    File *buf;
+    for(tmp = this->first_file; tmp != NULL; tmp = tmp->next){
+       if(tmp->f_name == f_name){
+            break;
+       }
+    }
+    if(tmp == NULL){
+        buf = new File;
+        if(this->last_file == NULL){
+            this->first_file = buf;
+            this->last_file = buf;
+        }
+        else{
+            this->last_file->next = buf; 
+            this->last_file = buf;
+        }
+        buf->f_name = f_name;
+        buf->owner_lst.push_back(owner);
+        buf->next = NULL;
+    }
+    else{
+        int check = 0;
+        for(int i=0; i<tmp->owner_lst.size(); i++){
+            if(tmp->owner_lst[i] == owner){
+                check = 1;
+                break;
+            }
+        }
+        if(check == 0)
+            tmp->owner_lst.push_back(owner);
+    }
+    return true;
+}
+void UserClass::RemoveOwner(string owner){
+    File *tmp;
+    File *last_tmp = NULL;
+    File *i;
+    vector<string>::iterator it;
+    for(tmp = this->first_file; tmp != NULL; tmp = tmp->next){
+        //cout << tmp->f_name << endl; 
+        for(it = tmp->owner_lst.begin(); it != tmp->owner_lst.end(); it++){
+            //cout << *it << endl;
+            if(*it == owner){
+                tmp->owner_lst.erase(it);
+                break;
+            }
+        }
+    }
+    for(tmp = this->first_file; tmp != NULL; tmp = i){
+        i = tmp->next;
+        if(tmp->owner_lst.size() == 0){
+            if(last_tmp != NULL){
+                last_tmp->next = tmp->next;
+            }
+            delete tmp;
+        }
+        else
+            last_tmp = tmp;
+    }
+    this->last_file = last_tmp;
+}
+void UserClass::PrintFileLst(){
+    File *tmp;
+    for(tmp=this->first_file; tmp!=NULL; tmp = tmp->next){
+        //cout << "gg" <<endl;
+        cout << tmp->f_name << ": ";
+        for(int i=0; i<tmp->owner_lst.size(); i++){
+            cout << tmp->owner_lst[i] << " ";
+        }
+        cout << endl;
+    }
+}

@@ -7,7 +7,6 @@ typedef struct INFO{
 }Info;
 
 UserClass userObject;
-ArticalClass articalObject;
 
 void WaitForData(int sockfd, struct sockaddr *servaddr);
 void CommandProcess(int command, Packet *packet_in, int sockfd, string IP, int port);
@@ -81,6 +80,7 @@ void* Process(void* arg){
 }
 void CommandProcess(int command, Packet *packet_in, int sockfd, string IP, int port){
     int nbytes;
+    int number;
     char recvline[MAXLINE];
     string recvData;
     string sendData;
@@ -90,6 +90,8 @@ void CommandProcess(int command, Packet *packet_in, int sockfd, string IP, int p
     string birthday;
     string success = "success";
     string fail = "fail";
+    string show = "show";
+    string transfer = "transfer";
     vector<string> file_lst;
     User* check;
     Packet *packet;
@@ -198,6 +200,36 @@ void CommandProcess(int command, Packet *packet_in, int sockfd, string IP, int p
                 cout << "\tIP: " << check->IP << endl;
                 cout << "\tport: " << check->port << endl;
                 cout << "}" << endl;
+                userObject.RemoveOwner(check->account);
+            }
+            break;
+        case DELETEMYACCOUNT:
+            packet = NewPacket(0);
+            if(userObject.DeleteUser(IP, port)){
+                userObject.SaveArtical();
+                PacketPush(packet, show);
+                PacketPushArtical(packet, success);
+                write(sockfd, (char*)packet, sizeof(Packet));
+                userObject.SaveUserList();
+            }
+            else{
+                PacketPush(packet, show);
+                PacketPushArtical(packet, fail);
+                write(sockfd, (char*)packet, sizeof(Packet));
+            }
+            delete packet;
+            break;
+        case UPDATELST:
+            number = packet_in->number;
+            //cout << "fffff" << endl;
+            if((check = userObject.FindUserFromIPAndPort(IP, port)) != NULL){
+                for(int i=0; i<number; i++){
+                    nbytes = read(sockfd, recvline, sizeof(Packet));
+                    packet = (Packet*)recvline;
+                    userObject.AddFile(string(packet->buf[0]), check->account);
+                    //cout<<packet->buf[0] << endl;
+                }
+                //userObject.PrintFileLst();
             }
             break;
     }

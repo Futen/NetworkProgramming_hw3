@@ -14,47 +14,59 @@ void* FileUpload(void *arg);
 void* RecvFromServer(void* arg);
 vector<string> ListDir();
 int Login(int sockfd, vector<string> file_lst);
+bool CheckLst(vector<string> a, vector<string> b);
 
 int main(int argc,char** argv){
     int service_port;
     int sockfd;
-	struct sockaddr_in servaddr;
+    struct sockaddr_in servaddr;
     string sendData;
     vector<string> file_lst;
+    vector<string> last_lst;
     pthread_t tid;
 
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
- 	bzero(&servaddr, sizeof(servaddr));
- 	servaddr.sin_family = AF_INET;
- 	servaddr.sin_port = htons(atoi(argv[2]));
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    bzero(&servaddr, sizeof(servaddr));
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port = htons(atoi(argv[2]));
     service_port = atoi(argv[3]);	
-	inet_pton(AF_INET, argv[1], &servaddr.sin_addr);
+    inet_pton(AF_INET, argv[1], &servaddr.sin_addr);
 
     file_lst = ListDir();
+    last_lst = file_lst;
     //for(int i=0; i<file_lst.size(); i++)
     //    cout << file_lst[i]<< endl;
-	
-	connect(sockfd, (struct sockaddr*) &servaddr, sizeof(servaddr));
+
+    connect(sockfd, (struct sockaddr*) &servaddr, sizeof(servaddr));
     Login(sockfd, file_lst);
     pthread_create(&tid, NULL, &RecvFromServer, &sockfd);
 
     while(true){
+        file_lst = ListDir();
         ShowCommand();
-        cin >> sendData;
-        sendData = GetCommandString(sendData);
-        ProcessCommand(sockfd, sendData);
+        if(!CheckLst(file_lst, last_lst)){
+            cin >> sendData;
+            sendData = GetCommandString(sendData);
+            ProcessCommand(sockfd, sendData);
+        }
+        else
+            ProcessCommand(sockfd, string("UPDATELST"));
+        last_lst = file_lst;
     }
 
-	exit(0);
+    exit(0);
 }
 void* RecvFromServer(void* arg){
     int sockfd = *((int*)arg);
     int nbytes;
     char recvline[MAXLINE];
+    string show = "show";
+    string transfer = "transfer";
     Packet *packet;
     while((nbytes=read(sockfd, recvline, sizeof(Packet))) > 0){
-       packet = (Packet*)recvline;
-       cout << packet->artical << endl;
+        packet = (Packet*)recvline;
+        if(show == packet->buf[0])
+            cout << packet->artical << endl;
     }
     return NULL;
 }
@@ -97,6 +109,32 @@ void* FileUpload(void *arg){
     free(arg);
     pthread_detach(pthread_self());
     return NULL;
+}
+bool CheckLst(vector<string> a, vector<string> b){
+    int check1, check2;
+    check1 = 1;
+    check2 = 1;
+    for(int i=0; i<a.size(); i++){
+        int check = 0;
+        for(int j=0; j<b.size(); j++){
+            if(a[i] == b[j])
+                check = 1;
+        }
+        check1 *= check;
+    }
+    for(int i=0; i<b.size(); i++){
+        int check = 0;
+        for(int j=0; j<a.size(); j++){
+            if(b[i] == a[j])
+                check = 1;
+        }
+        check2 *= check;
+    }
+    if(check1 == 1 && check2 == 1){
+        return false;
+    }
+    else
+        return true;
 }
 vector<string> ListDir(){
     vector<string> ls;
@@ -179,6 +217,7 @@ void ShowCommand(){
     cout << "$ ShowMyInfo" << endl;
     cout << "$ DeleteMyAccount" << endl;
     cout << "$ ModifyMyAccount" << endl;
+    cout << "$ UpdateLst" << endl;
     cout << "$ ShowMyInvite" << endl;
     cout << "$ InviteWho" << endl;
     cout << "$ AcceptMyInvite" << endl;
@@ -197,10 +236,12 @@ string GetCommandString(string input){
     else if(input == "AcceptMyInvite") return string("ACCEPTINVITE");
     else if(input == "InviteWho") return string("INVITE");
     else if(input == "SearchWho") return string("SEARCH");
+    else if(input == "UpdateLst") return string("UPDATELST");
     else    return string("UNKNOWN");
 }
 void ProcessCommand(int sockfd, string sendData){
     int command = CommandChoose(sendData);
+    vector<string> ls;
     Packet *packet;
     switch(command){
         case SHOWMYINFO:
@@ -217,6 +258,29 @@ void ProcessCommand(int sockfd, string sendData){
             write(sockfd, (char*)packet, sizeof(Packet));
             delete packet;
             exit(0);
+            break;
+        case DELETEMYACCOUNT:
+            packet = NewPacket(0);
+            PacketPush(packet, sendData);
+            write(sockfd, (char*)packet, sizeof(Packet));
+            delete packet;
+            sleep(2);
+            exit(0);
+            break;
+        case UPDATELST:
+            packet = NewPacket(0);
+            PacketPush(packet, sendData);
+            ls = ListDir();
+            //packet = NewPacket(0);
+            packet->number = ls.size();
+            write(sockfd, (char*)packet, sizeof(Packet));
+            delete packet;
+            for(int i=0; i<ls.size(); i++){
+                packet = NewPacket(0);
+                PacketPush(packet, ls[i]);
+                write(sockfd, (char*)packet, sizeof(Packet));
+                delete packet;
+            }
             break;
     }
 }
