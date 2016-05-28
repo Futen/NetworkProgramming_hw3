@@ -57,6 +57,7 @@
 using namespace std;
 typedef struct PACKET{
     int index;
+    int number;
     int count;
     char buf[5][20];
     char artical[1000];

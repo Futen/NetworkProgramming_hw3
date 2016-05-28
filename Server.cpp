@@ -10,7 +10,8 @@ UserClass userObject;
 ArticalClass articalObject;
 
 void WaitForData(int sockfd, struct sockaddr *servaddr);
-void CommandProcess(int command, char *line, int sockfd, struct sockaddr *pcliaddr, socklen_t clilen, string IP, int port);
+void CommandProcess(int command, Packet *packet_in, int sockfd, string IP, int port);
+//void CommandProcess(int command, char *line, int sockfd, struct sockaddr *pcliaddr, socklen_t clilen, string IP, int port);
 void* Process(void* arg);
 int main(int argc, char* argv[]){
     int sockfd;
@@ -57,6 +58,9 @@ void* Process(void* arg){
     int connfd;
     string IP;
     int port;
+    int nbytes;
+    char recvline[MAXLINE];
+    Packet *packet;
     Info info;
     info = *((Info*)arg);
     free(arg);
@@ -66,10 +70,139 @@ void* Process(void* arg){
     port = info.port;
     pthread_detach(pthread_self());
     printf("%s %d connect\n", IP.c_str(), port);
-    sleep(1000);
+    while((nbytes = read(connfd, recvline, sizeof(Packet))) != 0){
+        int command;
+        packet = (Packet*)recvline;
+        command = CommandChoose(string(packet->buf[0]));
+        CommandProcess(command, packet, connfd, IP, port);
+    }
     close(connfd);
     return NULL;
 }
+void CommandProcess(int command, Packet *packet_in, int sockfd, string IP, int port){
+    int nbytes;
+    char recvline[MAXLINE];
+    string recvData;
+    string sendData;
+    string account;
+    string password;
+    string nickname;
+    string birthday;
+    string success = "success";
+    string fail = "fail";
+    vector<string> file_lst;
+    User* check;
+    Packet *packet;
+    switch(command){
+        case LOGIN:
+            account = packet_in->buf[1];
+            password = packet_in->buf[2];
+            if((check = userObject.UserLogin(account, password, IP, port)) != NULL){
+                userObject.SaveUserList();
+                packet = NewPacket(0);
+                PacketPush(packet, success);
+                PacketPush(packet, check->nickname);
+                PacketPush(packet, check->birthday);
+                write(sockfd, (char*)packet, sizeof(Packet));
+                delete packet;
+                read(sockfd, recvline, sizeof(Packet));
+                packet = (Packet*)recvline;
+                int number = packet->number;
+                //cout << number << endl;
+                for(int i=0; i<number; i++){
+                    nbytes = read(sockfd, recvline, sizeof(Packet));
+                    packet = (Packet*)recvline;
+                    file_lst.push_back(string(packet->buf[0]));
+                    //cout << packet->buf[0] << endl;
+                }
+                cout << "Account Login:{" << endl;
+                cout << "\taccount: " << check->account << endl;
+                cout << "\tpassword: " << check->password << endl;
+                cout << "\tnickname: " << check->nickname << endl;
+                cout << "\tbirthday: " << check->birthday << endl;
+                cout << "\tIP: " << check->IP << endl;
+                cout << "\tport: " << check->port << endl;
+                cout << "\tfile: ";
+                for(int i=0; i<file_lst.size(); i++){
+                    cout << file_lst[i] << " ";
+                }
+                cout << endl;
+                cout << "}" << endl;
+            }
+            else{
+                packet = NewPacket(0);
+                PacketPush(packet, fail);
+                write(sockfd, (char*)packet, sizeof(Packet));
+                delete packet;
+            }
+            break;
+        case CREATEACCOUNT:
+            time_t ticks;
+            char buf[MAXLINE];
+            ticks = time(NULL);
+            sprintf(buf, "%d", (int)ticks);
+            //snprintf(buf, sizeof(buf), "%.24s", ctime(&ticks));
+            account = packet_in->buf[1];
+            password = packet_in->buf[2];
+            nickname = packet_in->buf[3];
+            birthday = packet_in->buf[4];
+            //cout << account << endl;
+            //cout << password << endl;
+            userObject.CreateUser(account, password, nickname, birthday, string(buf), string(buf));
+            check = userObject.UserLogin(account, password, IP, port);
+            if(check != NULL){
+                packet = NewPacket(0);
+                PacketPush(packet, success);
+                PacketPush(packet, check->nickname);
+                PacketPush(packet, check->birthday);
+                write(sockfd, (char*)packet, sizeof(Packet));
+                delete packet;
+                userObject.SaveUserList();
+                read(sockfd, recvline, sizeof(Packet));
+                packet = (Packet*)recvline;
+                int number = packet->number;
+                for(int i=0; i<number; i++){
+                    nbytes = read(sockfd, recvline, sizeof(Packet));
+                    packet = (Packet*)recvline;
+                    file_lst.push_back(string(packet->buf[0]));
+                }
+                cout << "Account Login:{" << endl;
+                cout << "\taccount: " << check->account << endl;
+                cout << "\tpassword: " << check->password << endl;
+                cout << "\tnickname: " << check->nickname << endl;
+                cout << "\tbirthday: " << check->birthday << endl;
+                cout << "\tIP: " << check->IP << endl;
+                cout << "\tport: " << check->port << endl;
+                cout << "\tfile: ";
+                for(int i=0; i<file_lst.size(); i++){
+                    cout << file_lst[i] << " ";
+                }
+                cout << endl;
+                cout << "}" << endl;
+            }
+            else{
+                packet = NewPacket(0);
+                PacketPush(packet, fail);
+                write(sockfd, (char*)packet, sizeof(Packet));
+                delete packet;
+            }
+            break;
+        case LOGOUT:
+            if((check=userObject.UserLogout(IP, port)) != NULL){
+                userObject.SaveUserList();
+                cout << "Account Logout:{" << endl;
+                cout << "\taccount: " << check->account << endl;
+                cout << "\tpassword: " << check->password << endl;
+                cout << "\tnickname: " << check->nickname << endl;
+                cout << "\tbirthday: " << check->birthday << endl;
+                cout << "\tIP: " << check->IP << endl;
+                cout << "\tport: " << check->port << endl;
+                cout << "}" << endl;
+            }
+            break;
+    }
+}
+/*
 void CommandProcess(int command, char* line, int sockfd, struct sockaddr *pcliaddr, socklen_t clilen, string IP, int port){
     int nbytes;
     int artical_index;
@@ -464,7 +597,7 @@ void CommandProcess(int command, char* line, int sockfd, struct sockaddr *pcliad
             break;
     }
 }
-
+*/
 
 
 
