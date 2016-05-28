@@ -1,68 +1,74 @@
 #include "DataBaseHeader.h"
 
+typedef struct INFO{
+    char IP[50];
+    int port;
+    int connfd;
+}Info;
+
 UserClass userObject;
 ArticalClass articalObject;
 
-void WaitForData(int sockfd, struct sockaddr *pcliaddr, socklen_t clilen);
+void WaitForData(int sockfd, struct sockaddr *servaddr);
 void CommandProcess(int command, char *line, int sockfd, struct sockaddr *pcliaddr, socklen_t clilen, string IP, int port);
-
+void* Process(void* arg);
 int main(int argc, char* argv[]){
     int sockfd;
     struct sockaddr_in server_addr;
-    struct sockaddr_in client_addr;
     
-    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
     bzero(&server_addr, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     server_addr.sin_port = htons(atoi(argv[1]));
 
     bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr));
-    WaitForData(sockfd, (struct sockaddr*)&client_addr, sizeof(client_addr));
+    listen(sockfd, LISTENQ);
+    WaitForData(sockfd, (struct sockaddr*)&server_addr);
     
     return 0;
 }
-void WaitForData(int sockfd, struct sockaddr *pcliaddr, socklen_t clilen){
-    int maxfd;
-    int nready;
+void WaitForData(int sockfd, struct sockaddr *servaddr){
+    int connfd;
     int command;
     int port;
     string IP;
-    struct timeval timeout;
-    fd_set allset;
+    struct sockaddr_in client_addr;
+    socklen_t clilen;
+    pthread_t tid;
+    Info *info;
 
     userObject.Init();
 
-    timeout.tv_sec = 1;
-    timeout.tv_usec = 0;
-    maxfd = sockfd;
-    
-    FD_ZERO(&allset);
-    FD_SET(sockfd, &allset);
-
-    //articalObject.ShowArtical();
-
     while(true){
-        nready = select(maxfd+1, &allset, NULL, NULL, NULL);
-        FD_SET(sockfd, &allset);
-        if(nready > 0 && FD_ISSET(sockfd, &allset)){
-            int nbytes;
-            char line[MAXLINE];
-            string data;
-            Packet* packet;
-            nbytes = recvfrom(sockfd, line, MAXLINE, 0,pcliaddr, &clilen);
-            packet = (Packet*)line;
-            IP = inet_ntoa(((struct sockaddr_in*)pcliaddr)->sin_addr);
-            port = ((struct sockaddr_in*)pcliaddr)->sin_port;
-            if(nbytes > 0){
-                data = string(packet->buf[0]);
-                //cout << data << endl;
-                //sendto(sockfd, line, strlen(line)+1, 0, pcliaddr, clilen);
-                command = CommandChoose(data);
-                CommandProcess(command, line, sockfd, pcliaddr, clilen, IP, port);
-            }
-        }
+        info = (Info*)malloc(sizeof(Info));
+        clilen = sizeof(client_addr);
+        connfd = accept(sockfd, (struct sockaddr*)&client_addr, &clilen);
+        IP = inet_ntoa(((struct sockaddr_in*)&client_addr)->sin_addr);
+        port = ((struct sockaddr_in*)&client_addr)->sin_port;
+        //printf("%s %d connect\n", IP.c_str(), port);
+        strcpy(info->IP, IP.c_str());
+        info->port = port;
+        info->connfd = connfd;
+        pthread_create(&tid, NULL, &Process, info);
     }
+}
+void* Process(void* arg){
+    int connfd;
+    string IP;
+    int port;
+    Info info;
+    info = *((Info*)arg);
+    free(arg);
+
+    connfd = info.connfd;
+    IP = info.IP;
+    port = info.port;
+    pthread_detach(pthread_self());
+    printf("%s %d connect\n", IP.c_str(), port);
+    sleep(1000);
+    close(connfd);
+    return NULL;
 }
 void CommandProcess(int command, char* line, int sockfd, struct sockaddr *pcliaddr, socklen_t clilen, string IP, int port){
     int nbytes;

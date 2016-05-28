@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include <pthread.h>
 
 #define LISTENQ 10
 #define SERV_PORT 8000
