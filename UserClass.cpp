@@ -585,7 +585,7 @@ bool UserClass::UnLike(string IP, int port, string account, int artical_index){
     }
     return false;
 }
-bool UserClass::AddFile(string f_name, string owner){
+bool UserClass::AddFile(string f_name, string owner, int sz){
     File *tmp = NULL;
     File *buf;
     for(tmp = this->first_file; tmp != NULL; tmp = tmp->next){
@@ -603,6 +603,7 @@ bool UserClass::AddFile(string f_name, string owner){
             this->last_file->next = buf; 
             this->last_file = buf;
         }
+        buf->file_size = sz;
         buf->f_name = f_name;
         buf->owner_lst.push_back(owner);
         buf->next = NULL;
@@ -652,10 +653,31 @@ void UserClass::PrintFileLst(){
     File *tmp;
     for(tmp=this->first_file; tmp!=NULL; tmp = tmp->next){
         //cout << "gg" <<endl;
-        cout << tmp->f_name << ": ";
+        cout << tmp->f_name << " " << tmp->file_size  << ": ";
         for(int i=0; i<tmp->owner_lst.size(); i++){
             cout << tmp->owner_lst[i] << " ";
         }
         cout << endl;
     }
+}
+string UserClass::GetFileLst(){
+    string output = "";
+    File *tmp;
+    for(tmp=this->first_file; tmp!=NULL; tmp = tmp->next){
+        //cout << "gg" <<endl;
+        output += tmp->f_name + ": ";
+        for(int i=0; i<tmp->owner_lst.size(); i++){
+            output += tmp->owner_lst[i] + " ";
+        }
+        output += "\n";
+    }
+    return output;
+}
+File* UserClass::FindFile(string f_name){
+    File *tmp;
+    for(tmp=this->first_file; tmp!=NULL; tmp = tmp->next){
+        if(tmp->f_name == f_name)
+            return tmp;
+    }
+    return NULL;
 }

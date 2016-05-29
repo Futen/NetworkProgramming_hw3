@@ -54,11 +54,15 @@
 #define SHOWLOGIN 24
 #define SHOWLOGOUT 25
 #define UPDATELST 26
+#define SHOWFILELST 27
+#define REQUESTFILE 28
 
 using namespace std;
 typedef struct PACKET{
     int index;
     int number;
+    int number2;
+    int number3;
     int count;
     char buf[5][20];
     char artical[1000];

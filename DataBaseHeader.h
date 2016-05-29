@@ -34,6 +34,7 @@ struct User{
     string birthday;
     string IP;
     int port;
+    int service_port;
     time_t reg_time_t;
     time_t last_time_t;
     string reg_time;
@@ -49,6 +50,7 @@ struct User{
 struct File{
     string f_name;
     vector<string> owner_lst;
+    int file_size;
     File *next;
 };
 class UserClass;
@@ -112,8 +114,10 @@ public:
     bool RemoveInvite(string user_account, string who);
     bool InviteAggree(string user_account, string friend_account);
     /*****************/
-    bool AddFile(string f_name, string owner);
+    bool AddFile(string f_name, string owner, int sz);
     void RemoveOwner(string owner);
     void PrintFileLst();
+    string GetFileLst();
+    File* FindFile(string f_name);
 };
 #endif

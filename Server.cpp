@@ -95,11 +95,13 @@ void CommandProcess(int command, Packet *packet_in, int sockfd, string IP, int p
     vector<string> file_lst;
     User* check;
     Packet *packet;
+    File *file;
     switch(command){
         case LOGIN:
             account = packet_in->buf[1];
             password = packet_in->buf[2];
             if((check = userObject.UserLogin(account, password, IP, port)) != NULL){
+                check->service_port = packet_in->number;
                 userObject.SaveUserList();
                 packet = NewPacket(0);
                 PacketPush(packet, success);
@@ -153,6 +155,7 @@ void CommandProcess(int command, Packet *packet_in, int sockfd, string IP, int p
             userObject.CreateUser(account, password, nickname, birthday, string(buf), string(buf));
             check = userObject.UserLogin(account, password, IP, port);
             if(check != NULL){
+                check->service_port = packet_in->number;
                 packet = NewPacket(0);
                 PacketPush(packet, success);
                 PacketPush(packet, check->nickname);
@@ -226,12 +229,43 @@ void CommandProcess(int command, Packet *packet_in, int sockfd, string IP, int p
                 for(int i=0; i<number; i++){
                     nbytes = read(sockfd, recvline, sizeof(Packet));
                     packet = (Packet*)recvline;
-                    userObject.AddFile(string(packet->buf[0]), check->account);
+                    userObject.AddFile(string(packet->buf[0]), check->account, packet->number);
                     //cout<<packet->buf[0] << endl;
                 }
-                //userObject.PrintFileLst();
+                userObject.PrintFileLst();
             }
             break;
+        case SHOWFILELST:
+            packet = NewPacket(0);
+            PacketPush(packet, show);
+            sendData = userObject.GetFileLst();
+            //cout << sendData;
+            PacketPushArtical(packet, sendData);
+            write(sockfd, (char*)packet, sizeof(Packet));
+            delete packet;
+            break;
+        case REQUESTFILE:
+            file = userObject.FindFile(string(packet_in->buf[1]));
+            if(file != NULL){
+                packet = NewPacket(0);
+                PacketPush(packet, transfer);
+                PacketPush(packet, file->f_name);
+                packet->number = file->owner_lst.size();
+                packet->number2 = file->file_size;
+                write(sockfd, (char*)packet, sizeof(Packet));
+                delete packet;
+                for(int i=0; i<file->owner_lst.size(); i++){
+                    packet = NewPacket(0);
+                    PacketPush(packet, string(file->owner_lst[i]));
+                    check = userObject.FindUser(string("account"), file->owner_lst[i]);
+                    PacketPush(packet, check->IP);
+                    packet->number = check->service_port;
+                    write(sockfd, (char*)packet, sizeof(Packet));
+                    delete packet;
+                }
+            }
+        default:
+            cout << "GG command" << endl;
     }
 }
 /*

@@ -4,20 +4,27 @@ string user_account;
 string user_password;
 string user_nickname;
 string user_birthday;
-
+struct owner_info{
+    string file_name;
+    string IP;
+    int port;
+};
 void ShowCommand();
 string GetCommandString(string input);
 void ProcessCommand(int sockfd, string sendData);
 void* Command(void *arg);
 void* WaitForConnect(void *arg);
-void* FileUpload(void *arg);
+void FileUpload(int sockfd, string file_name, int start_byte, int end_byte);
+void FileDownload(int sz, vector<owner_info> info);
 void* RecvFromServer(void* arg);
 vector<string> ListDir();
 int Login(int sockfd, vector<string> file_lst);
 bool CheckLst(vector<string> a, vector<string> b);
 
+int service_port;
+
+
 int main(int argc,char** argv){
-    int service_port;
     int sockfd;
     struct sockaddr_in servaddr;
     string sendData;
@@ -40,17 +47,19 @@ int main(int argc,char** argv){
     connect(sockfd, (struct sockaddr*) &servaddr, sizeof(servaddr));
     Login(sockfd, file_lst);
     pthread_create(&tid, NULL, &RecvFromServer, &sockfd);
-
+    pthread_create(&tid, NULL, &WaitForConnect, &service_port);
+    int t = 0;
     while(true){
         file_lst = ListDir();
         ShowCommand();
-        if(!CheckLst(file_lst, last_lst)){
+        if(!CheckLst(file_lst, last_lst) && t != 0){
             cin >> sendData;
             sendData = GetCommandString(sendData);
             ProcessCommand(sockfd, sendData);
         }
         else
             ProcessCommand(sockfd, string("UPDATELST"));
+        t = 1;
         last_lst = file_lst;
     }
 
@@ -59,27 +68,114 @@ int main(int argc,char** argv){
 void* RecvFromServer(void* arg){
     int sockfd = *((int*)arg);
     int nbytes;
+    int number;
     char recvline[MAXLINE];
     string show = "show";
     string transfer = "transfer";
+    string file_name;
+    string owner;
+    string IP;
+    int port;
+    int sz;
     Packet *packet;
     while((nbytes=read(sockfd, recvline, sizeof(Packet))) > 0){
         packet = (Packet*)recvline;
         if(show == packet->buf[0])
             cout << packet->artical << endl;
+        else if(transfer == packet->buf[0]){
+            vector<owner_info> info;
+            number = packet->number;
+            file_name = packet->buf[1];
+            sz = packet->number2;
+            //cout << file_name << endl;
+            for(int i=0; i<number; i++){
+                nbytes = read(sockfd, recvline, sizeof(Packet));
+                packet = (Packet*)recvline;
+                owner = packet->buf[0];
+                IP = packet->buf[1];
+                port = packet->number;
+                owner_info owner_if;
+
+                owner_if.file_name = file_name;
+                owner_if.IP = IP;
+                owner_if.port = port;
+                info.push_back(owner_if);
+                //cout << owner << endl;
+                //cout << IP << endl;
+                //cout << port << endl;
+            }
+            FileDownload(sz, info);
+        }
     }
     return NULL;
+}
+void FileDownload(int sz, vector<owner_info> info){
+    int sockfd;
+    struct sockaddr_in servaddr;
+    Packet *packet;
+    int start_b = 0;
+    int end_b = 0;
+    int nbytes;
+    int dis = sz / info.size();
+    char line[BUFFSIZE];
+    sprintf(line, "data/%s", info[0].file_name.c_str());
+    FILE *fp = fopen(line, "wb");
+    
+    int leave_sz = sz;
+    for(int i=0; i<info.size(); i++){
+        sockfd = socket(AF_INET, SOCK_STREAM, 0);
+        bzero(&servaddr, sizeof(servaddr));
+        servaddr.sin_family = AF_INET;
+        servaddr.sin_port = htons(info[i].port);
+        inet_pton(AF_INET, info[i].IP.c_str(), &servaddr.sin_addr);
+
+        connect(sockfd, (struct sockaddr*) &servaddr, sizeof(servaddr));
+        packet = NewPacket(0);
+        PacketPush(packet, info[i].file_name);
+        packet->number = start_b;
+        packet->number2 = start_b + dis - 1;
+        write(sockfd, (char*)packet, sizeof(Packet));
+        delete packet;
+        int leave_trans_byte;
+        if(leave_sz > dis){
+            leave_trans_byte = dis;
+            while(true){
+                nbytes = read(sockfd, line, BUFFSIZE);
+                fwrite(line, sizeof(char), nbytes, fp);
+                leave_trans_byte -= nbytes;
+                if(leave_trans_byte == 0)
+                    break;
+            }
+            leave_sz -= dis;
+        }
+        else{
+            leave_trans_byte = leave_sz;
+            while(true){
+                nbytes = read(sockfd, line, BUFFSIZE);
+                fwrite(line, sizeof(char), nbytes, fp);
+                leave_trans_byte -= nbytes;
+                if(leave_trans_byte == 0)
+                    break;
+            }
+            leave_sz = 0;
+        }
+        close(sockfd);
+    }
+    fclose(fp);
 }
 void* WaitForConnect(void *arg){
     int service_port = *((int*)arg);
     int server_sockfd;
-    int *connfd;
+    int connfd;
     int nbytes;
     char recvline[MAXLINE];
     string recvData;
     struct sockaddr_in server_addr, client_addr;
     socklen_t clilen;
-    pthread_t tid;
+    Packet *packet;
+
+    string IP;
+    int port;
 
     printf("Port: %d\n", service_port);
     service_port = htons(service_port);
@@ -93,22 +189,38 @@ void* WaitForConnect(void *arg){
     listen(server_sockfd, LISTENQ);
     while(true){
         clilen = sizeof(client_addr);
-        connfd = (int*)malloc(sizeof(int));
-        *connfd = accept(server_sockfd, (struct sockaddr*)&client_addr, &clilen);
-        nbytes = read(*connfd, recvline, MAXLINE);
-        recvData = recvline;
-        if(recvData == "FILE"){
-            pthread_create(&tid, NULL, &FileUpload, connfd);
-        }
+        connfd = accept(server_sockfd, (struct sockaddr*)&client_addr, &clilen);
+        IP = inet_ntoa(((struct sockaddr_in*)&client_addr)->sin_addr);
+        port = port = ((struct sockaddr_in*)&client_addr)->sin_port;
+        printf("%s %d connect\n", IP.c_str(), port);
+        nbytes = read(connfd, recvline, sizeof(Packet));
+        packet = (Packet*)recvline;
+        string file_name = packet->buf[0];
+        int start_b = packet->number;
+        int end_b = packet->number2;
+        FileUpload(connfd, file_name, start_b, end_b);
+        close(connfd);
     }
     return NULL;
 }
-void* FileUpload(void *arg){
+void FileUpload(int sockfd, string file_name, int start_byte, int end_byte){
     int nbytes;
-    int connfd = *((int*)arg);
-    free(arg);
-    pthread_detach(pthread_self());
-    return NULL;
+    int connfd = sockfd;
+    int total_sz = end_byte - start_byte + 1;
+    char line[BUFFSIZE];
+    sprintf(line, "data/%s", file_name.c_str());
+    FILE *fp = fopen(line, "rb");
+    fseek(fp, 0L, start_byte);
+    while(total_sz > BUFFSIZE){
+        nbytes = fread(line, sizeof(char), BUFFSIZE, fp);
+        nbytes = write(sockfd, line, nbytes);
+        total_sz -= nbytes;
+    }
+    if(total_sz != 0){
+        nbytes = fread(line, sizeof(char), total_sz, fp);
+        nbytes = write(sockfd, line, nbytes);
+    }
+    fclose(fp);
 }
 bool CheckLst(vector<string> a, vector<string> b){
     int check1, check2;
@@ -186,6 +298,8 @@ int Login(int sockfd, vector<string> file_lst){
         PacketPush(packet, user_nickname);
         PacketPush(packet, user_birthday);
     }
+
+    packet->number = service_port;
     write(sockfd, (char*)packet, sizeof(Packet));
     delete packet;
     read(sockfd, recvline, MAXLINE);
@@ -214,6 +328,7 @@ int Login(int sockfd, vector<string> file_lst){
 }
 void ShowCommand(){
     cout << "***************" << endl;
+    cout << "$ ShowAllFile" << endl;
     cout << "$ ShowMyInfo" << endl;
     cout << "$ DeleteMyAccount" << endl;
     cout << "$ ModifyMyAccount" << endl;
@@ -224,6 +339,7 @@ void ShowCommand(){
     cout << "$ RemoveMyInvite" << endl;
     cout << "$ SearchWho" << endl;
     cout << "$ Logout" << endl;
+    cout << "$ DownloadFile" << endl;
     cout << "***************" << endl;
 }
 string GetCommandString(string input){
@@ -237,11 +353,16 @@ string GetCommandString(string input){
     else if(input == "InviteWho") return string("INVITE");
     else if(input == "SearchWho") return string("SEARCH");
     else if(input == "UpdateLst") return string("UPDATELST");
+    else if(input == "ShowAllFile") return string("SHOWFILELST");
+    else if(input == "DownloadFile") return string("REQUESTFILE");
     else    return string("UNKNOWN");
 }
 void ProcessCommand(int sockfd, string sendData){
     int command = CommandChoose(sendData);
     vector<string> ls;
+    char line[MAXLINE];
+    int sz;
+    FILE *fp;
     Packet *packet;
     switch(command){
         case SHOWMYINFO:
@@ -278,9 +399,29 @@ void ProcessCommand(int sockfd, string sendData){
             for(int i=0; i<ls.size(); i++){
                 packet = NewPacket(0);
                 PacketPush(packet, ls[i]);
+                sprintf(line, "data/%s", ls[i].c_str());
+                fp = fopen(line, "rb");
+                fseek(fp, 0L, SEEK_END);
+                sz = ftell(fp);
+                fclose(fp);
+                packet->number = sz;
                 write(sockfd, (char*)packet, sizeof(Packet));
                 delete packet;
             }
+            break;
+        case SHOWFILELST:
+            packet = NewPacket(0);
+            PacketPush(packet, sendData);
+            write(sockfd, (char*)packet, sizeof(Packet));
+            delete packet;
+            break;
+        case REQUESTFILE:
+            packet = NewPacket(0);
+            PacketPush(packet, sendData);
+            cin >> sendData;
+            PacketPush(packet, sendData);
+            write(sockfd, (char*)packet, sizeof(Packet));
+            delete packet;
             break;
     }
 }

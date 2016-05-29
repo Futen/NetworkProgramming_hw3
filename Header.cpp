@@ -55,6 +55,10 @@ int CommandChoose(string command){
         return SHOWLOGOUT;
     else if(command == "UPDATELST")
         return UPDATELST;
+    else if(command == "SHOWFILELST")
+        return SHOWFILELST;
+    else if(command == "REQUESTFILE")
+        return REQUESTFILE;
     else
         return DEFAULT;
 }
