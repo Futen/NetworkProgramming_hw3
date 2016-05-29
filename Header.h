@@ -25,6 +25,7 @@
 #define SERV_PORT 8000
 #define MAXLINE 3000
 #define BUFFSIZE 1300
+#define SERVICE_PORT 8001
 
 #define TEST -1
 #define DEFAULT 0

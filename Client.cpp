@@ -22,7 +22,7 @@ int Login(int sockfd, vector<string> file_lst);
 bool CheckLst(vector<string> a, vector<string> b);
 
 int service_port;
-int massage_port;
+int massage_port=0;
 
 int main(int argc,char** argv){
     int sockfd;
@@ -36,8 +36,11 @@ int main(int argc,char** argv){
     bzero(&servaddr, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
     servaddr.sin_port = htons(atoi(argv[2]));
-    service_port = atoi(argv[3]);	
-    massage_port = atoi(argv[4]);
+    if(argc == 4)
+        service_port = atoi(argv[3]);	
+    else
+        service_port = SERVICE_PORT;
+    //massage_port = atoi(argv[4]);
     inet_pton(AF_INET, argv[1], &servaddr.sin_addr);
 
     file_lst = ListDir();
