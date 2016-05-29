@@ -14,7 +14,7 @@ string GetCommandString(string input);
 void ProcessCommand(int sockfd, string sendData);
 void* Command(void *arg);
 void* WaitForConnect(void *arg);
-void FileUpload(int sockfd, string file_name, int start_byte, int end_byte);
+void FileUpload(int sockfd, string file_name, int start_byte, int total_byte);
 void FileDownload(int sz, vector<owner_info> info);
 void* RecvFromServer(void* arg);
 vector<string> ListDir();
@@ -78,6 +78,7 @@ void* RecvFromServer(void* arg){
     int port;
     int sz;
     Packet *packet;
+    pthread_detach(pthread_self());
     while((nbytes=read(sockfd, recvline, sizeof(Packet))) > 0){
         packet = (Packet*)recvline;
         if(show == packet->buf[0])
@@ -116,49 +117,46 @@ void FileDownload(int sz, vector<owner_info> info){
     int start_b = 0;
     int end_b = 0;
     int nbytes;
+    int leave;
     int dis = sz / info.size();
     char line[BUFFSIZE];
     sprintf(line, "data/%s", info[0].file_name.c_str());
     FILE *fp = fopen(line, "wb");
     
     int leave_sz = sz;
+    cout << "GGGGGGGGGGGGGGGGGGGGGGG\n";
     for(int i=0; i<info.size(); i++){
         sockfd = socket(AF_INET, SOCK_STREAM, 0);
         bzero(&servaddr, sizeof(servaddr));
         servaddr.sin_family = AF_INET;
         servaddr.sin_port = htons(info[i].port);
         inet_pton(AF_INET, info[i].IP.c_str(), &servaddr.sin_addr);
-
+        //printf("i %d port %d\n", i, info[i].port);
         connect(sockfd, (struct sockaddr*) &servaddr, sizeof(servaddr));
         packet = NewPacket(0);
         PacketPush(packet, info[i].file_name);
         packet->number = start_b;
-        packet->number2 = start_b + dis - 1;
-        write(sockfd, (char*)packet, sizeof(Packet));
-        delete packet;
-        int leave_trans_byte;
-        if(leave_sz > dis){
-            leave_trans_byte = dis;
-            while(true){
-                nbytes = read(sockfd, line, BUFFSIZE);
-                fwrite(line, sizeof(char), nbytes, fp);
-                leave_trans_byte -= nbytes;
-                if(leave_trans_byte == 0)
-                    break;
-            }
-            leave_sz -= dis;
+        //cout << "START~~~~~~~~~  " << start_b << endl;
+        if(start_b + dis -1 <= sz - 1){
+            packet->number2 = dis;
+            leave = packet->number2;
         }
         else{
-            leave_trans_byte = leave_sz;
-            while(true){
-                nbytes = read(sockfd, line, BUFFSIZE);
-                fwrite(line, sizeof(char), nbytes, fp);
-                leave_trans_byte -= nbytes;
-                if(leave_trans_byte == 0)
-                    break;
-            }
-            leave_sz = 0;
+            packet->number2 = sz - start_b - 1;
+            leave = packet->number2;
         }
+        start_b += dis;
+        write(sockfd, (char*)packet, sizeof(Packet));
+        delete packet;
+        while(leave > 0){
+            if(leave >= BUFFSIZE)
+                nbytes = read(sockfd, line, BUFFSIZE);
+            else
+                nbytes = read(sockfd, line, leave);
+            fwrite(line, sizeof(char), nbytes, fp);
+            leave -= nbytes;
+        }
+        cout << "File Dowwnload Finish !!!" << endl;
         close(sockfd);
     }
     fclose(fp);
@@ -176,7 +174,7 @@ void* WaitForConnect(void *arg){
 
     string IP;
     int port;
-
+    pthread_detach(pthread_self());
     printf("Port: %d\n", service_port);
     service_port = htons(service_port);
     server_sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -203,23 +201,23 @@ void* WaitForConnect(void *arg){
     }
     return NULL;
 }
-void FileUpload(int sockfd, string file_name, int start_byte, int end_byte){
+void FileUpload(int sockfd, string file_name, int start_byte, int total_byte){
     int nbytes;
     int connfd = sockfd;
-    int total_sz = end_byte - start_byte + 1;
     char line[BUFFSIZE];
+    int leave = total_byte;
     sprintf(line, "data/%s", file_name.c_str());
     FILE *fp = fopen(line, "rb");
-    fseek(fp, 0L, start_byte);
-    while(total_sz > BUFFSIZE){
-        nbytes = fread(line, sizeof(char), BUFFSIZE, fp);
+    fseek(fp, start_byte, SEEK_SET);
+    while(leave > 0){
+        if(leave >= BUFFSIZE)
+            nbytes = fread(line, sizeof(char), BUFFSIZE, fp);
+        else
+            nbytes = fread(line, sizeof(char), leave, fp);
         nbytes = write(sockfd, line, nbytes);
-        total_sz -= nbytes;
+        leave -= nbytes;
     }
-    if(total_sz != 0){
-        nbytes = fread(line, sizeof(char), total_sz, fp);
-        nbytes = write(sockfd, line, nbytes);
-    }
+    cout << "File Upload Finish!!!" << endl;
     fclose(fp);
 }
 bool CheckLst(vector<string> a, vector<string> b){
