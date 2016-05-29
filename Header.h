@@ -24,7 +24,7 @@
 #define LISTENQ 10
 #define SERV_PORT 8000
 #define MAXLINE 3000
-#define BUFFSIZE 2048
+#define BUFFSIZE 1300
 
 #define TEST -1
 #define DEFAULT 0
@@ -56,6 +56,7 @@
 #define UPDATELST 26
 #define SHOWFILELST 27
 #define REQUESTFILE 28
+#define CHAT 29
 
 using namespace std;
 typedef struct PACKET{

@@ -22,7 +22,7 @@ int Login(int sockfd, vector<string> file_lst);
 bool CheckLst(vector<string> a, vector<string> b);
 
 int service_port;
-
+int massage_port;
 
 int main(int argc,char** argv){
     int sockfd;
@@ -37,6 +37,7 @@ int main(int argc,char** argv){
     servaddr.sin_family = AF_INET;
     servaddr.sin_port = htons(atoi(argv[2]));
     service_port = atoi(argv[3]);	
+    massage_port = atoi(argv[4]);
     inet_pton(AF_INET, argv[1], &servaddr.sin_addr);
 
     file_lst = ListDir();
@@ -153,8 +154,10 @@ void FileDownload(int sz, vector<owner_info> info){
                 nbytes = read(sockfd, line, BUFFSIZE);
             else
                 nbytes = read(sockfd, line, leave);
-            fwrite(line, sizeof(char), nbytes, fp);
-            leave -= nbytes;
+            if(nbytes > 0){
+                fwrite(line, sizeof(char), nbytes, fp);
+                leave -= nbytes;
+            }
         }
         cout << "File Dowwnload Finish !!!" << endl;
         close(sockfd);
@@ -214,8 +217,10 @@ void FileUpload(int sockfd, string file_name, int start_byte, int total_byte){
             nbytes = fread(line, sizeof(char), BUFFSIZE, fp);
         else
             nbytes = fread(line, sizeof(char), leave, fp);
-        nbytes = write(sockfd, line, nbytes);
-        leave -= nbytes;
+        if(nbytes > 0){
+            nbytes = write(sockfd, line, nbytes);
+            leave -= nbytes;
+        }
     }
     cout << "File Upload Finish!!!" << endl;
     fclose(fp);
@@ -298,6 +303,7 @@ int Login(int sockfd, vector<string> file_lst){
     }
 
     packet->number = service_port;
+    packet->number2 = massage_port;
     write(sockfd, (char*)packet, sizeof(Packet));
     delete packet;
     read(sockfd, recvline, MAXLINE);
@@ -338,6 +344,7 @@ void ShowCommand(){
     cout << "$ SearchWho" << endl;
     cout << "$ Logout" << endl;
     cout << "$ DownloadFile" << endl;
+    cout << "$ Chat" << endl;
     cout << "***************" << endl;
 }
 string GetCommandString(string input){
@@ -353,12 +360,14 @@ string GetCommandString(string input){
     else if(input == "UpdateLst") return string("UPDATELST");
     else if(input == "ShowAllFile") return string("SHOWFILELST");
     else if(input == "DownloadFile") return string("REQUESTFILE");
+    else if(input == "Chat") return string("CHAT");
     else    return string("UNKNOWN");
 }
 void ProcessCommand(int sockfd, string sendData){
     int command = CommandChoose(sendData);
     vector<string> ls;
     char line[MAXLINE];
+    string recvData;
     int sz;
     FILE *fp;
     Packet *packet;
@@ -423,3 +432,4 @@ void ProcessCommand(int sockfd, string sendData){
             break;
     }
 }
+

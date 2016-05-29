@@ -59,6 +59,8 @@ int CommandChoose(string command){
         return SHOWFILELST;
     else if(command == "REQUESTFILE")
         return REQUESTFILE;
+    else if(command == "CHAT")
+        return CHAT;
     else
         return DEFAULT;
 }

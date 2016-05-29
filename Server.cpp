@@ -102,6 +102,7 @@ void CommandProcess(int command, Packet *packet_in, int sockfd, string IP, int p
             password = packet_in->buf[2];
             if((check = userObject.UserLogin(account, password, IP, port)) != NULL){
                 check->service_port = packet_in->number;
+                check->massage_port = packet_in->number2;
                 userObject.SaveUserList();
                 packet = NewPacket(0);
                 PacketPush(packet, success);
@@ -156,6 +157,7 @@ void CommandProcess(int command, Packet *packet_in, int sockfd, string IP, int p
             check = userObject.UserLogin(account, password, IP, port);
             if(check != NULL){
                 check->service_port = packet_in->number;
+                check->massage_port = packet_in->number2;
                 packet = NewPacket(0);
                 PacketPush(packet, success);
                 PacketPush(packet, check->nickname);

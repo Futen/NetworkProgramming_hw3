@@ -35,6 +35,7 @@ struct User{
     string IP;
     int port;
     int service_port;
+    int massage_port;
     time_t reg_time_t;
     time_t last_time_t;
     string reg_time;
